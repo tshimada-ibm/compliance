@@ -1,0 +1,753 @@
+/*
+ * Stages using fully Qualified DB Table Reference
+ *
+ * Rational:
+ * Fully qualified DB Table Reference can cause problem when migrating from Dev environment to Production or vice versa
+ * As it may point read/write to the wrong database
+ */
+
+fullyQualifiedStages = [] as Set    // List of Stages (inc Stage Name) with Fully Qualified DB Ref Table
+
+qualifiedPatterns = [
+    'select'                        : [ ".*select\\s+.*\\s+from\\s+(\\S+)\\s+[inner|outer|left|right]\\s+join.*",   // select * from [table1] inner join table2
+                                        ".*select\\s+.*\\s+join(\\S+)\\s+on.*",                                     // select * from table1 inner join [table2] on something
+                                        ".*select\\s+.*\\s+from\\s+(\\S+)\\s+where.*",                              // select * from [table1] where something
+                                        ".*select\\s+.*\\s+from\\s+(\\S+)"                                          // select * from [table1]
+                                      ],
+    'insert'                        : [ ".*insert\\s+into\\s+(\\S+)[\\s+\\(].*",                                    // insert into [table] (fields) values(data)
+                                        ".*insert\\s+into\\s+(\\S+)[\\s+\\)]values.*"                               // insert into [table] values(data)
+                                      ],
+    'delete'                        : [ ".*delete\\s+from\\s+(\\S+)\\s+where.*",                                    // delete from [table] where something
+                                        ".*delete\\s+(\\S+)\\s+where.*"                                             // delete [table] where something
+                                      ],
+    'update'                        : [ ".*update\\s+(\\S+)\\s+set\\s+.*"                                           // update [table] set something
+                                      ],
+    'create'                        : [ ".*create\\s+table\\s+(\\S+)\\s+.*"                                         // create table [table] something
+                                      ],
+    'drop'                          : [ ".*drop\\s+table\\s+(\\S+)\\s+.*"                                           // drop table [table] something
+                                      ],
+    'procedure'                     : [ ".*exec\\s+(\\S+)\\s+.*",                                                   // exec [procedure] something
+                                        ".*execute\\s+(\\S+)\\s+.*",                                                // execute [procedure] something
+                                      ]
+]
+
+propertiesTemplates = [
+    //Oracle Template
+    oracleTemplate                  : [ genSQLMode : 'XMLProperties:Usage.GenerateSQL',
+                                        genSQLModeRef : [
+                                                '0'     : 'sql',          // User specify SQL
+                                                'false' : 'sql',          // User specify SQL      
+                                                '1'     : 'table',        // DS generate SQL
+                                                'true'  : 'table',        // DS generate SQL
+                                        ],
+                                        readMode : 'XMLProperties:Usage.ReadMode',
+                                        readModeRef : [
+                                                '0' : 'select',
+                                                '1' : 'plsql'
+                                        ],
+                                        writeMode : 'XMLProperties:Usage.WriteMode',
+                                        writeModeRef: [
+                                                '0' : ['insert'],
+                                                '1' : ['update'],
+                                                '2' : ['delete'],
+                                                '3' : ['insert', 'update'],
+                                                '4' : ['insert', 'update'],
+                                                '5' : ['insert', 'delete'],
+                                                '6' : ['bulkload'],
+                                                '8' : ['plsql'],
+                                                '9' : ['insert']
+                                        ],
+                                        sqlFromFileRef: [
+                                                'select' : [tag : 'XMLProperties:Usage.SQL.SelectStatement.ReadFromFileSelect', isReadFromFile: '1'],
+                                                'delete' : [tag : 'XMLProperties:Usage.SQL.DeleteStatement.ReadFromFileDelete', isReadFromFile: '1'],
+                                                'update' : [tag : 'XMLProperties:Usage.SQL.UpdateStatement.ReadFromFileUpdate', isReadFromFile: '1'],
+                                                'insert' : [tag : 'XMLProperties:Usage.SQL.InsertStatement.ReadFromFileInsert', isReadFromFile: '1'],
+                                                'plsql'  : [tag : 'XMLProperties:Usage.SQL.PlSqlStatement.ReadFromFilePLSQLBlock', isReadFromFile: '1']
+                                        ],
+                                        SelectStatement : 'XMLProperties:Usage.SQL.SelectStatement',
+                                        DeleteStatement : 'XMLProperties:Usage.SQL.DeleteStatement',
+                                        UpdateStatement : 'XMLProperties:Usage.SQL.UpdateStatement',
+                                        InsertStatement : 'XMLProperties:Usage.SQL.InsertStatement',
+                                        CustomStatement : 'XMLProperties:Usage.SQL.PlSqlStatement',
+                                        TableName : 'XMLProperties:Usage.TableName'],
+    //DB2 Template
+    db2Template                     : [ genSQLMode : 'XMLProperties:Usage.GenerateSQL',
+                                        genSQLModeRef : [
+                                                '0'     : 'sql',          // User specify SQL
+                                                'false' : 'sql',          // User specify SQL      
+                                                '1'     : 'table',        // DS generate SQL
+                                                'true'  : 'table',        // DS generate SQL
+                                        ],
+                                        readMode : 'XMLProperties:Usage.WriteMode',
+                                        readModeRef : [
+                                                ''  : 'select'
+                                        ],
+                                        writeMode : 'XMLProperties:Usage.WriteMode',
+                                        writeModeRef: [
+                                                '0' : ['insert'],
+                                                '1' : ['update'],
+                                                '2' : ['delete'],
+                                                '3' : ['insert', 'update'],
+                                                '4' : ['insert', 'update'],
+                                                '5' : ['insert', 'delete'],
+                                                '6' : ['bulkload'],                         // Use TableName, but GenerateSQL is empty
+                                                '7' : ['custom'],                           // User Defined (could be SQL or File)
+                                                '8' : ['insert']
+                                        ],
+                                        sqlFromFileRef: [
+                                                'select' : [tag : 'XMLProperties:Usage.SQL.SelectStatement.ReadFromFileSelect', isReadFromFile: '1'],
+                                                'delete' : [tag : 'XMLProperties:Usage.SQL.DeleteStatement.ReadFromFileDelete', isReadFromFile: '1'],
+                                                'update' : [tag : 'XMLProperties:Usage.SQL.UpdateStatement.ReadFromFileUpdate', isReadFromFile: '1'],
+                                                'insert' : [tag : 'XMLProperties:Usage.SQL.InsertStatement.ReadFromFileInsert', isReadFromFile: '1'],
+                                                'custom' : [tag : 'XMLProperties:Usage.SQL.UserDefinedSQL.File', isReadFromFile: 'NOTNULL']
+                                        ],
+                                        SelectStatement : 'XMLProperties:Usage.SQL.SelectStatement',
+                                        DeleteStatement : 'XMLProperties:Usage.SQL.DeleteStatement',
+                                        UpdateStatement : 'XMLProperties:Usage.SQL.UpdateStatement',
+                                        InsertStatement : 'XMLProperties:Usage.SQL.InsertStatement',
+                                        CustomStatement : 'XMLProperties:Usage.SQL.UserDefinedSQL.Statements',
+                                        TableName : 'XMLProperties:Usage.TableName'],
+    //Teradata Template
+    teraTemplate                    : [ genSQLMode : 'XMLProperties:Usage.GenerateSQL',
+                                        genSQLModeRef : [
+                                                '0'     : 'sql',          // User specify SQL
+                                                'false' : 'sql',          // User specify SQL      
+                                                '1'     : 'table',        // DS generate SQL
+                                                'true'  : 'table',        // DS generate SQL
+                                        ],
+                                        readMode : 'XMLProperties:Usage.WriteMode',
+                                        readModeRef : [
+                                                ''  : 'select'
+                                        ],
+                                        writeMode : 'XMLProperties:Usage.WriteMode',
+                                        writeModeRef: [
+                                                '0' : ['insert'],
+                                                '1' : ['update'],
+                                                '2' : ['delete'],
+                                                '3' : ['insert', 'update'],
+                                                '4' : ['insert', 'update'],
+                                                '5' : ['insert', 'delete'],
+                                                '6' : ['bulkload'],                         // Use TableName, but GenerateSQL is empty
+                                                '7' : ['custom'],                           // User Defined (could be SQL or File)
+                                                '8' : ['insert']
+                                        ],
+                                        sqlFromFileRef: [
+                                                'select' : [tag : 'XMLProperties:Usage.SQL.SelectStatement.ReadFromFileSelect', isReadFromFile: '1'],
+                                                'delete' : [tag : 'XMLProperties:Usage.SQL.DeleteStatement.ReadFromFileDelete', isReadFromFile: '1'],
+                                                'update' : [tag : 'XMLProperties:Usage.SQL.UpdateStatement.ReadFromFileUpdate', isReadFromFile: '1'],
+                                                'insert' : [tag : 'XMLProperties:Usage.SQL.InsertStatement.ReadFromFileInsert', isReadFromFile: '1'],
+                                                'custom' : [tag : 'XMLProperties:Usage.SQL.UserDefined.File', isReadFromFile: 'NOTNULL']
+                                        ],
+                                        SelectStatement : 'XMLProperties:Usage.SQL.SelectStatement',
+                                        DeleteStatement : 'XMLProperties:Usage.SQL.DeleteStatement',
+                                        UpdateStatement : 'XMLProperties:Usage.SQL.UpdateStatement',
+                                        InsertStatement : 'XMLProperties:Usage.SQL.InsertStatement',
+                                        CustomStatement : 'XMLProperties:Usage.SQL.UserDefined.Statements',
+                                        TableName : 'XMLProperties:Usage.TableName'],
+    //Common Template
+    commonTemplate                  : [ genSQLMode : 'XMLProperties:Usage.GenerateSQL',
+                                        genSQLModeRef : [
+                                                '0'     : 'sql',          // User specify SQL
+                                                'false' : 'sql',          // User specify SQL      
+                                                '1'     : 'table',        // DS generate SQL
+                                                'true'  : 'table',        // DS generate SQL
+                                        ],
+                                        readMode : 'XMLProperties:Usage.ReadMode',
+                                        readModeRef : [
+                                                '0' : 'select',
+                                                '1' : 'custom'
+                                        ],
+                                        writeMode : 'XMLProperties:Usage.WriteMode',
+                                        writeModeRef: [
+                                                '0' : ['insert'],
+                                                '1' : ['update'],
+                                                '2' : ['delete'],
+                                                '3' : ['insert', 'update'],
+                                                '4' : ['insert', 'update'],
+                                                '5' : ['insert', 'delete'],
+                                                '6' : ['bulkload'],
+                                                '8' : ['custom'],
+                                                '9' : ['insert']
+                                        ],
+                                        sqlFromFileRef: [
+                                                'select' : [tag : 'XMLProperties:Usage.SQL.SelectStatement.ReadFromFileSelect', isReadFromFile: '1'],
+                                                'delete' : [tag : 'XMLProperties:Usage.SQL.DeleteStatement.ReadFromFileDelete', isReadFromFile: '1'],
+                                                'update' : [tag : 'XMLProperties:Usage.SQL.UpdateStatement.ReadFromFileUpdate', isReadFromFile: '1'],
+                                                'insert' : [tag : 'XMLProperties:Usage.SQL.InsertStatement.ReadFromFileInsert', isReadFromFile: '1'],
+                                                'plsql'  : [tag : 'XMLProperties:Usage.SQL.CustomStatements.ReadFromFileCustom', isReadFromFile: '1']
+                                        ],
+                                        SelectStatement : 'XMLProperties:Usage.SQL.SelectStatement',
+                                        DeleteStatement : 'XMLProperties:Usage.SQL.DeleteStatement',
+                                        UpdateStatement : 'XMLProperties:Usage.SQL.UpdateStatement',
+                                        InsertStatement : 'XMLProperties:Usage.SQL.InsertStatement',
+                                        CustomStatement : 'XMLProperties:Usage.SQL.CustomStatements',
+                                        TableName : 'XMLProperties:Usage.TableName'],
+    //ODBC Template
+    odbcTemplate                    : [ genSQLMode : 'XMLProperties:Usage.GenerateSQL',
+                                        genSQLModeRef : [
+                                                '0'     : 'sql',          // User specify SQL
+                                                'false' : 'sql',          // User specify SQL      
+                                                '1'     : 'table',        // DS generate SQL
+                                                'true'  : 'table',        // DS generate SQL
+                                        ],
+                                        readMode : 'XMLProperties:Usage.WriteMode',
+                                        readModeRef : [
+                                                ''  : 'select'
+                                        ],
+                                        writeMode : 'XMLProperties:Usage.WriteMode',
+                                        writeModeRef: [
+                                                '0' : ['insert'],
+                                                '1' : ['update'],
+                                                '2' : ['delete'],
+                                                '3' : ['insert', 'update'],
+                                                '4' : ['insert', 'update'],
+                                                '5' : ['insert', 'delete'],
+                                                '6' : ['bulkload'],                         // Use TableName, but GenerateSQL is empty
+                                                '7' : ['custom'],                           // User Defined (could be SQL or File)
+                                                '8' : ['insert']
+                                        ],
+                                        sqlFromFileRef: [
+                                                'select' : [tag : 'XMLProperties:Usage.SQL.SelectStatement.ReadStatementFromFile', isReadFromFile: '1'],
+                                                'delete' : [tag : 'XMLProperties:Usage.SQL.DeleteStatement.ReadStatementFromFile', isReadFromFile: '1'],
+                                                'update' : [tag : 'XMLProperties:Usage.SQL.UpdateStatement.ReadStatementFromFile', isReadFromFile: '1'],
+                                                'insert' : [tag : 'XMLProperties:Usage.SQL.InsertStatement.ReadStatementFromFile', isReadFromFile: '1'],
+                                                'custom' : [tag : 'XMLProperties:Usage.SQL.UserDefinedSQL.File', isReadFromFile: 'NOTNULL']
+                                        ],
+                                        SelectStatement : 'XMLProperties:Usage.SQL.SelectStatement',
+                                        DeleteStatement : 'XMLProperties:Usage.SQL.DeleteStatement',
+                                        UpdateStatement : 'XMLProperties:Usage.SQL.UpdateStatement',
+                                        InsertStatement : 'XMLProperties:Usage.SQL.InsertStatement',
+                                        CustomStatement : 'XMLProperties:Usage.SQL.UserDefinedSQL.Statements',
+                                        TableName : 'XMLProperties:Usage.TableName'],
+    //Green Plum & Netezza Template
+    greenPlumTemplate               : [ genSQLMode : 'XMLProperties:Usage.GenerateSQL',
+                                        genSQLModeRef : [
+                                                '0'     : 'sql',          // User specify SQL
+                                                'false' : 'sql',          // User specify SQL      
+                                                '1'     : 'table',        // DS generate SQL
+                                                'true'  : 'table',        // DS generate SQL
+                                        ],
+                                        readMode : 'XMLProperties:Usage.WriteMode',
+                                        readModeRef : [
+                                                ''  : 'select'
+                                        ],
+                                        writeMode : 'XMLProperties:Usage.WriteMode',
+                                        writeModeRef: [
+                                                '0' : ['insert'],
+                                                '1' : ['update'],
+                                                '2' : ['delete'],
+                                                '3' : ['insert', 'update'],
+                                                '4' : ['insert', 'update'],
+                                                '5' : ['insert', 'delete'],
+                                                '6' : ['bulkload'],                         // Use TableName, but GenerateSQL is empty
+                                                '7' : ['custom'],                           // User Defined (could be SQL or File)
+                                                '8' : ['insert']
+                                        ],
+                                        sqlFromFileRef: [
+                                                'select' : [tag : 'XMLProperties:Usage.SQL.UserDefinedSQL.ReadUserDefinedSQLFromFile', isReadFromFile: '1'],
+                                                'delete' : [tag : 'XMLProperties:Usage.SQL.UserDefinedSQL.ReadUserDefinedSQLFromFile', isReadFromFile: '1'],
+                                                'update' : [tag : 'XMLProperties:Usage.SQL.UserDefinedSQL.ReadUserDefinedSQLFromFile', isReadFromFile: '1'],
+                                                'insert' : [tag : 'XMLProperties:Usage.SQL.UserDefinedSQL.ReadUserDefinedSQLFromFile', isReadFromFile: '1'],
+                                                'custom' : [tag : 'XMLProperties:Usage.SQL.UserDefinedSQL.ReadUserDefinedSQLFromFile', isReadFromFile: '1']
+                                        ],
+                                        SelectStatement : 'XMLProperties:Usage.SQL.SelectStatement',
+                                        DeleteStatement : 'XMLProperties:Usage.SQL.UserDefinedSQL',
+                                        UpdateStatement : 'XMLProperties:Usage.SQL.UserDefinedSQL',
+                                        InsertStatement : 'XMLProperties:Usage.SQL.UserDefinedSQL',
+                                        CustomStatement : 'XMLProperties:Usage.SQL.UserDefinedSQL',
+                                        TableName : 'XMLProperties:Usage.TableName'],
+    //DRS
+    drsTemplate                     : [ genSQLMode : 'XMLProperties:Usage.GENSQL',
+                                        genSQLModeRef : [
+                                                '0' : 'table',          // DS generate SQL
+                                                '1' : 'sql',            // User specify SQL
+                                                '2' : 'file'            // SQL from file
+                                        ],
+                                        readMode : 'XMLProperties:Usage.DOUPDATE',
+                                        readModeRef : [
+                                                ''  : 'select',
+                                        ],
+                                        writeMode : 'XMLProperties:Usage.DOUPDATE',
+                                        writeModeRef: [
+                                                '0' : ['insert'],
+                                                '1' : ['delete'],
+                                                '2' : ['replace'],
+                                                '3' : ['update'],
+                                                '4' : ['insert', 'update'],
+                                                '5' : ['insert', 'update'],
+                                                '6' : ['insert'],
+                                                '7' : ['truncate'],
+                                                '8' : ['bulkload'],
+                                                '9' : ['custom'],
+                                                '10': ['file']
+                                        ],
+                                        sqlFromFileRef: [
+                                                'select' : [tag : 'XMLProperties:Usage.GENSQL', isReadFromFile: '2'],
+                                                'delete' : [tag : 'XMLProperties:Usage.GENSQL', isReadFromFile: '2'],
+                                                'update' : [tag : 'XMLProperties:Usage.GENSQL', isReadFromFile: '2'],
+                                                'insert' : [tag : 'XMLProperties:Usage.GENSQL', isReadFromFile: '2'],
+                                                'custom' : [tag : 'XMLProperties:Usage.GENSQL', isReadFromFile: '2']
+                                        ],
+                                        SelectStatement : 'XMLProperties:Usage.SQL.USERSQL',
+                                        DeleteStatement : 'XMLProperties:Usage.SQL.USERSQL',
+                                        UpdateStatement : 'XMLProperties:Usage.SQL.USERSQL',
+                                        InsertStatement : 'XMLProperties:Usage.SQL.USERSQL',
+                                        CustomStatement : 'XMLProperties:Usage.SQL.USERSQL',
+                                        TableName : 'XMLProperties:Usage.TABLE'],
+]
+
+
+ // Stage/Pin to XMLProperties mapping
+
+ //Connectors Stages
+connectorProperties = [
+    'DB2ConnectorPX'        : 'db2Template',
+    'DRSConnectorPX'        : 'drsTemplate',
+    'GreenplumConnectorPX'  : 'greenPlumTemplate',
+    'HiveConnectorPX'       : 'commonTemplate',         // Use common template
+    'JDBCConnectorPX'       : 'commonTemplate',         // Use common template
+    'NetezzaConnectorPX'    : 'greenPlumTemplate',      // Use the same template as Greenplum
+    'ODBCConnectorPX'       : 'odbcTemplate',
+    'OracleConnectorPX'     : 'oracleTemplate',
+    'SnowflakeConnectorPX'  : 'commonTemplate',         // Use common template
+    'TeradataConnectorPX'   : 'teraTemplate',
+    'DTStagePX'             : 'odbcTemplate'            // USE ODBC template        
+]
+
+//TM1 Stages
+tm1Stages = [
+    'TM1ConnectorPX'            //TMSConnector's XMLProperties is way difference from other Connector Stages
+] as Set
+
+//Enterprise Stages
+enterpriseStages = [
+    'PxDB2',
+    'PxInformixXPS',            // input does not support SQL (only table)
+    'PxOdbc',
+    'PxOracle',
+    'Pxsqlsvr',
+    'PxSybase',
+    'PxTeradata'
+] as Set
+
+//Type1 Stages shares similar properties as Enterprise stages, just less
+type1Stages = [
+    'PxClassicFederation',      // input only support table, insert & update
+    'Pxiway',                   // input not allowed
+    'PXNetezza'                 // input does not support SQL (only table)
+] as Set
+
+ //Type 2 Stages config is on pin level but the properties is different from type 1
+type2Stages = [
+    'DSDB2PX',                  // DB2 Stage has been deprecated
+    'DRSPX',                    // Dynamic RDBMS Stage has been DEPRECATED
+    'InfmxCLIPX',               // Informix Data Access
+    'SYBASEOCPX',               // Sybase Data Access
+    'TeradataPX',               // Teradata Stage has been DEPRECATED
+] as Set
+
+//Type3 Stages does not support custom SQL
+type3Stages = [
+    'PxDB2Z',                   // DB2Z has been DEPRECATED
+    'INFBLK10PX',
+    'XPSLoadPX',
+    'rdbloadPX',
+    'IQBulk12PX',
+    'TDMLoadPX',
+    'TerabulkPX'
+] as Set
+
+//Type4 Stages have no XMLProperties, and config is at Stage level
+type4Stages = [
+    'UDBLoadPX',
+    'ORAOCIBLPX',
+    'STPPX'
+] as Set
+
+
+// Return True = SQL is generated by DataStage, False =  User Specify SQL
+def isGeneratedSQL(stageType, xmlProperties) {
+    def templateName = connectorProperties[stageType]
+
+    if (templateName) {
+        def propTemplate = propertiesTemplates[templateName]
+        if ((propTemplate) && (xmlProperties != null) && propTemplate.genSQLMode.contains("XMLProperties:")) {
+            def genSQLTag = propTemplate.genSQLMode.drop("XMLProperties:".length())
+            def genSQLMode = Eval.x(xmlProperties, "x.${genSQLTag}").toString()
+
+            if ((propTemplate.genSQLModeRef[genSQLMode])?.toString() == 'sql') {
+                return false
+            } else if ((propTemplate.genSQLModeRef[genSQLMode])?.toString() == 'table') {
+                return true
+            } else {
+                // Check WriteMode
+                // bulkload = isGeneratedSQL = True
+                // custom & statement = False
+                // custome & file = *False* (and let the paraseStements section to ignore the file)
+                def writeModeType = []
+                if (propTemplate.writeMode.contains("XMLProperties:")) {
+                    def writeModeTag = propTemplate.writeMode.drop("XMLProperties:".length())
+                    writeMode = Eval.x(xmlProperties, "x.${writeModeTag}")?.toString().toLowerCase().replace('\n',' ')
+                    writeModeType = propTemplate.writeModeRef[writeMode]
+                    if ((writeModeType != null) && writeModeType.contains('bulkload')) {
+                        return true
+                    } else if ((writeModeType != null) && writeModeType.contains('custom')) {
+                        return false
+                    }
+                }
+            }
+        }
+    }
+    return null
+}
+
+//Get SQL Statement and look for fully qualified table reference
+def parseStatements(stageName, stageType, xmlProperties) {
+    def templateName = connectorProperties[stageType]
+
+    if (templateName) {
+        def propTemplate = propertiesTemplates[templateName]
+
+        if (propTemplate && (xmlProperties  != null)) {
+            //Check for Read/Write Mode
+            def readModeType = []
+            if (propTemplate.readMode.contains("XMLProperties:")) {
+                def readModeTag = propTemplate.readMode.drop("XMLProperties:".length())
+                def readMode = Eval.x(xmlProperties, "x.${readModeTag}")?.toString().toLowerCase().replace('\n',' ')
+                readModeType = propTemplate.readModeRef[readMode]
+            }
+
+            def writeModeType = []
+            if (propTemplate.writeMode.contains("XMLProperties:")) {
+                def writeModeTag = propTemplate.writeMode.drop("XMLProperties:".length())
+                writeMode = Eval.x(xmlProperties, "x.${writeModeTag}")?.toString().toLowerCase().replace('\n',' ')
+                writeModeType = propTemplate.writeModeRef[writeMode]
+            }
+
+            if ((readModeType != null) && readModeType.contains('select')) {
+                //Select
+                def isReadFromFileTag = propTemplate.sqlFromFileRef.select.tag.drop("XMLProperties:".length())
+                def isReadFromFile = Eval.x(xmlProperties, "x.${isReadFromFileTag}")?.toString().toLowerCase().replace('\n',' ')
+                if ((isReadFromFile == null) || (isReadFromFile != propTemplate.sqlFromFileRef.select.isReadFromFile)) {
+                    //Only cares for user specified SQL
+                    def selectTag = propTemplate.SelectStatement.drop("XMLProperties:".length())
+                    def selectStatement = Eval.x(xmlProperties, "x.${selectTag}")?.toString().toLowerCase().replace('\n',' ')
+                    parseSQLTableName(stageName, stageType, selectStatement, qualifiedPatterns.select)
+                }
+            } else if ((writeModeType != null) && writeModeType.contains('update')) {
+                //Update
+                def isReadFromFileTag = propTemplate.sqlFromFileRef.update.tag.drop("XMLProperties:".length())
+                def isReadFromFile = Eval.x(xmlProperties, "x.${isReadFromFileTag}")?.toString().toLowerCase().replace('\n',' ')
+                if ((isReadFromFile == null) || (isReadFromFile != propTemplate.sqlFromFileRef.update.isReadFromFile)) {
+                    //Only cares for user specified SQL
+                    def updateTag = propTemplate.UpdateStatement.drop("XMLProperties:".length())
+                    def updateStatement = Eval.x(xmlProperties, "x.${updateTag}")?.toString().toLowerCase().replace('\n',' ')
+                    parseSQLTableName(stageName, stageType, updateStatement, qualifiedPatterns.update)
+                }
+            } else if ((writeModeType != null) && writeModeType.contains('delete')) {
+                //Delete
+                def isReadFromFileTag = propTemplate.sqlFromFileRef.delete.tag.drop("XMLProperties:".length())
+                def isReadFromFile = Eval.x(xmlProperties, "x.${isReadFromFileTag}")?.toString().toLowerCase().replace('\n',' ')
+                if ((isReadFromFile == null) || (isReadFromFile != propTemplate.sqlFromFileRef.delete.isReadFromFile)) {
+                    //Only cares for user specified SQL
+                    def deleteTag = propTemplate.DeleteStatement.drop("XMLProperties:".length())
+                    def deleteStatement = Eval.x(xmlProperties, "x.${deleteTag}")?.toString().toLowerCase().replace('\n',' ')
+                    parseSQLTableName(stageName, stageType, deleteStatement, qualifiedPatterns.delete)
+                }
+            } else if ((writeModeType != null) && writeModeType.contains('custom')) {
+                //Custom
+                def isReadFromFileTag = propTemplate.sqlFromFileRef.custom.tag.drop("XMLProperties:".length())
+                def isReadFromFile = Eval.x(xmlProperties, "x.${isReadFromFileTag}")?.toString().toLowerCase().replace('\n',' ')
+                if ((isReadFromFile == null) || (isReadFromFile != propTemplate.sqlFromFileRef.custom.isReadFromFile)) {
+                    //Only cares for user specified SQL
+                    def customTag = propTemplate.CustomStatement.drop("XMLProperties:".length())
+                    def customStatement = Eval.x(xmlProperties, "x.${customTag}")?.toString().toLowerCase().replace('\n',' ')
+                    //Custom Statement could be either insert, update or delete
+                    def isFullyQualified = parseSQLTableName(stageName, stageType, customStatement, qualifiedPatterns.insert)
+                    if (!isFullyQualified) { // Once fully qualified, do not need further checking
+                        isFullyQualified = parseSQLTableName(stageName, stageType, customStatement, qualifiedPatterns.update)
+                    }
+                    if (!isFullyQualified) {
+                        isFullyQualified = parseSQLTableName(stageName, stageType, customStatement, qualifiedPatterns.delete)
+                    }
+                }
+            } else if ((writeModeType != null) && writeModeType.contains('insert')) {
+                //Insert
+                def isReadFromFileTag = propTemplate.sqlFromFileRef.insert.tag.drop("XMLProperties:".length())
+                def isReadFromFile = Eval.x(xmlProperties, "x.${isReadFromFileTag}")?.toString().toLowerCase().replace('\n',' ')
+                if ((isReadFromFile == null) || (isReadFromFile != propTemplate.sqlFromFileRef.insert.isReadFromFile)) {
+                    //Only cares for user specified SQL
+                    def insertTag = propTemplate.InsertStatement.drop("XMLProperties:".length())
+                    def insertStatement = Eval.x(xmlProperties, "x.${insertTag}")?.toString().toLowerCase().replace('\n',' ')
+                    parseSQLTableName(stageName, stageType, insertStatement, qualifiedPatterns.insert)
+                }
+            }
+        }
+    }
+}
+
+//Get table name look for fully qualified table reference
+def parseXMLPropertiesTableName(stageName, stageType, xmlProperties) {
+    def templateName = connectorProperties[stageType]
+    if (templateName) {
+        def propTemplate = propertiesTemplates[templateName]
+        if (propTemplate && (xmlProperties  != null)) {
+            def tableNameTag = propTemplate.TableName.drop("XMLProperties:".length())
+            def tableName = Eval.x(xmlProperties, "x.${tableNameTag}")?.toString().toLowerCase().replace('\n',' ')
+            processDBTableFullyQualified(stageName, stageType, tableName)
+        }
+    }
+}
+
+//Get table name from SQL statement
+def parseSQLTableName(stageName, stageType, statement, patterns) {
+    isFullyQualified = false
+
+    if (statement != null) {
+        patterns.each{ ptn ->
+            if (!isFullyQualified) {
+                def ptnMatcher = statement =~ ptn
+                if (ptnMatcher.find()) {
+                    ptnMatcher.each{
+                        if (!isFullyQualified) {
+                            if ((it[1]).contains(",")) {
+                                def tbls = (it[1]).split(",")
+                                tbls.each{ t ->
+                                    if (processDBTableFullyQualified(stageName, stageType, t)) {
+                                        isFullyQualified = true
+                                    }
+                                }
+                            } else {
+                                if (processDBTableFullyQualified(stageName, stageType, it[1])) {
+                                    isFullyQualified = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    return isFullyQualified
+}
+
+//Add to fullyQualifiedStages set when  fully qualified DB Ref is found (e.g. db.schema.table or db..table)
+def processDBTableFullyQualified(stageName, stageType, tableName) {
+    if ((tableName != null) && (tableName.count(".") == 2)) {
+        fullyQualifiedStages.add("${config.readableStageTypes[stageType] ?: stageType} '${stageName}'")
+        return true
+    }
+    return false
+}
+
+
+item.graph.V.stage.sideEffect{ stage ->
+    //Connector Stages
+    if (connectorProperties[stage.stageType] != null) {
+
+        // Stage with multiple input links
+        if (stage.inE.link.count() > 1) {
+            stage.in.pin.sideEffect{ pin ->            
+                if (pin.XMLProperties != null) {
+                    def isGenerated = isGeneratedSQL(stage.stageType, pin.XMLProperties)
+                    if (isGenerated != null) {
+                        if (isGenerated == true) {
+                            parseXMLPropertiesTableName(stage.stageName, stage.stageType, pin.XMLProperties)
+                        } else {
+                            parseStatements(stage.stageName, stage.stageType, pin.XMLProperties)
+                        }
+                    }
+                }
+            }.iterate()
+        }
+        
+        // Stage with multiple output links
+        if (stage.outE.link.count() > 1) {
+            stage.out.pin.sideEffect{ pin ->
+                if (pin.XMLProperties != null) {
+                    def isGenerated = isGeneratedSQL(stage.stageType, pin.XMLProperties)
+                    if (isGenerated != null) {
+                        if (isGenerated == true) {
+                            parseXMLPropertiesTableName(stage.stageName, stage.stageType, pin.XMLProperties)
+                        } else {
+                            parseStatements(stage.stageName, stage.stageType, pin.XMLProperties)
+                        }
+                    }
+                }
+            }.iterate()
+        } 
+        
+        // Stage with single input/output link
+        if ((stage.inE.link.count() == 1) || stage.outE.link.count() == 1) {
+            def isGenerated = isGeneratedSQL(stage.stageType, stage.XMLProperties)
+            if (isGenerated != null) {
+                if (isGenerated == true) {
+                    parseXMLPropertiesTableName(stage.stageName, stage.stageType, stage.XMLProperties)
+                } else {
+                    parseStatements(stage.stageName, stage.stageType, stage.XMLProperties)
+                }
+            }
+        }
+    }
+
+    //TM1 Connector Stages (TM1 only supports single link)
+    if (tm1Stages.contains(stage.stageType)) {
+        if (stage.XMLProperties != null) {
+            def tableName = Eval.x(xmlProperties, "x.Usage.TM1ObjectName")?.toString().toLowerCase().replace('\n',' ')
+            processDBTableFullyQualified(stage.stageName, stage.stageType, tableName)
+        }
+    }
+
+    //Enterprise Stages and Type 1 Stages are stored in separate buckets
+    // but handled the same bacause Enterprise stages also have SQL builder mode and Type 1 doesn't.
+    // For the modes we care about, the info for both is stored in the places in the same way.
+    if (enterpriseStages.contains(stage.stageType) || type1Stages.contains(stage.stageType)) {
+
+        //Select
+        if (stage.out) {
+            stage.out.pin.sideEffect{ pin ->
+                switch (pin.selection.toString().toLowerCase()) {
+                    case "table":           //table
+                    case "query":           //auto generated sql, so use table
+                        tableName = pin.property("tablename").next().toString().toLowerCase();
+                        processDBTableFullyQualified(stage.stageName, stage.stageType, tableName)
+                        break;
+                    case "userquery":
+                    case "sqlbuilder":
+                        sql = pin.property("query").next().toString().toLowerCase();
+                        parseSQLTableName(stage.stageName, stage.stageType, sql, qualifiedPatterns.select)
+                        break;
+                    default:
+                        break;
+                }
+            }.iterate()
+        }
+
+        //Insert, Update & Delete
+        if (stage.in) {
+            stage.in.pin.sideEffect{ pin ->
+                switch (pin.selection.toString().toLowerCase()) {
+                    case "table":           //table
+                    case "query":           //auto generated sql, so use table
+                        tableName = pin.property("tablename").next().toString().toLowerCase();
+                        processDBTableFullyQualified(stage.stageName, stage.stageType, tableName)
+                        break;
+                    case "userquery":
+                    case "sqlbuilder":
+                        autosql = pin.property("upsertautosql").next().toString().toLowerCase();
+                        if ((autosql == "yes") || (autosql == "1")) {
+                            tableName = pin.property("tablename").toString().toLowerCase();
+                            processDBTableFullyQualified(stage.stageName, stage.stageType, tableName)
+                        } else {
+                            sql = pin.property("query").next().toString().toLowerCase();
+                            def isFullyQualified = parseSQLTableName(stage.stageName, stage.stageType, sql, qualifiedPatterns.insert)
+                            if (!isFullyQualified) {
+                                isFullyQualified = parseSQLTableName(stage.stageName, stage.stageType, sql, qualifiedPatterns.update)
+                            }
+                            if (!isFullyQualified) {
+                                isFullyQualified = parseSQLTableName(stage.stageName, stage.stageType, sql, qualifiedPatterns.delete)
+                            }
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }.iterate()
+        }
+    }
+
+    //Type 2 Stages config is on pin level but the properties is different from type 1
+    if (type2Stages.contains(stage.stageType)) {
+        //Select
+        if (stage.out) {
+            stage.out.pin.sideEffect{ pin ->
+                sql = pin.property("USERSQL").next().toString().toLowerCase().replace("null","");
+                parseSQLTableName(stage.stageName, stage.stageType, sql, qualifiedPatterns.select)
+            }.iterate()
+        }
+
+        //Insert, update, delete
+        if (stage.in) {
+            stage.in.pin.sideEffect{ pin ->
+                switch(pin.property("GENSQL").next().toString().toLowerCase()) {
+                    case "yes":
+                    case "y":
+                        // TableName
+                        tableName = pin.TARGETTABLE.toString().toLowerCase()        // InfmxCLIPX
+                        if (tableName == null || tableName == "null") {
+                            tableName = pin.TARGET_TABLE.toString().toLowerCase()   // SYBASEOCPX
+                        }
+                        if (tableName == null || tableName == "null") {
+                            tableName = pin.TABLE.toString().toLowerCase()          // DRSPX
+                        }
+
+                        processDBTableFullyQualified(stage.stageName, stage.stageType, tableName)
+                    case "no":
+                    case "n":
+                        // User
+                        sql = pin.property("USERSQL").next().toString().toLowerCase().replace("null","");
+                        def isFullyQualified = parseSQLTableName(stage.stageName, stage.stageType, sql, qualifiedPatterns.insert)
+                        if (!isFullyQualified) {
+                            isFullyQualified = parseSQLTableName(stage.stageName, stage.stageType, sql, qualifiedPatterns.update)
+                        }
+                        if (!isFullyQualified) {
+                            isFullyQualified = parseSQLTableName(stage.stageName, stage.stageType, sql, qualifiedPatterns.delete)
+                        }
+                        break;
+                    case "fullygensql":
+                        sql = pin.property("FULLYGENSQL").next().toString().toLowerCase().replace("null","");
+                        def isFullyQualified = parseSQLTableName(stage.stageName, stage.stageType, sql, qualifiedPatterns.insert)
+                        if (!isFullyQualified) {
+                            isFullyQualified = parseSQLTableName(stage.stageName, stage.stageType, sql, qualifiedPatterns.update)
+                        }
+                        if (!isFullyQualified) {
+                            isFullyQualified = parseSQLTableName(stage.stageName, stage.stageType, sql, qualifiedPatterns.delete)
+                        }
+                        break;
+                    default:
+                        return false;
+                        break;
+                }
+            }.iterate()
+
+        }
+    }
+    
+    // Type 3 stages only does not support custom SQL
+    if (type3Stages.contains(stage.stageType)) {
+        //Select
+        if (stage.out) {
+            stage.out.pin.sideEffect{ pin ->
+                sql = pin.property("USERSQL").next().toString().toLowerCase().replace("null","");
+                parseSQLTableName(stage.stageName, stage.stageType, sql, qualifiedPatterns.select)
+            }.iterate()
+        }
+
+        //Insert, Update, Delete
+        if (stage.in) {
+            stage.in.pin.sideEffect{ pin ->
+                def tableName = pin.property("TABLE").next().toString().toLowerCase()
+                if (tableName == null || tableName == "null") {
+                    tableName = pin.property("table").next().toString().toLowerCase()
+                }
+                processDBTableFullyQualified(stage.stageName, stage.stageType, tableName)
+            }.iterate()
+        }
+    }
+
+    // Type 4 also includes Stored Procedure, and it has no XMLProperties, plus config is at Stage level
+    if (type4Stages.contains(stage.stageType)) {
+        def tableName = stage.TABLENAME.toString().toLowerCase()
+        processDBTableFullyQualified(stage.stageName, stage.stageType, tableName)
+
+        def storedProc = stage.STDPROC.toString().toLowerCase()
+        processDBTableFullyQualified(stage.stageName, stage.stageType, storedProc)
+    }
+
+
+}.iterate()
+
+fullyQualifiedStages.each{ s ->
+    compliance.failure("${s} contains fully qualified DB table ref.")
+}

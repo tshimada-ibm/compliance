@@ -1,0 +1,50 @@
+/*
+* Lists the stages that are not yet supported by IBM Data Flow Designer
+*
+* Rationale:
+* For the Upgrade scenario, it will be useful in the future to know which jobs can be 
+* fully supported using Data Flow Designer. Each job that 'fails' this rule needs the 
+* standard DS Client available in order to be maintained.
+*
+* Based on list from IBM:
+* https://www.ibm.com/support/knowledgecenter/en/SSZJPZ_11.7.0/com.ibm.swg.im.iis.ds.fd.doc/topics/c_supported_conn_stgs.html
+*
+*/
+
+def map = [
+'CCondition'                      : 'Yes' , // Condition
+'CEndLoopActivity'                : 'Yes' , // End Loop Activity
+'CExceptionHandler'               : 'Yes' , // Exception Handler
+'CExecCommandActivity'            : 'Yes' , // Execute Command Activity
+'CJobActivity'                    : 'Yes' , // Job Activity
+'CNotificationActivity'           : 'No'  , // Notification Activity
+'COozieWfActivity'                : 'Yes' , // Oozie Workflow
+'CRoutineActivity'                : 'Yes' , // Routine Activity
+'CSequencer'                      : 'Yes' , // Job Sequence
+'CStartLoopActivity'              : 'Yes' , // Start Loop Activity
+'CTerminatorActivity'             : 'Yes' , // Terminator Activity
+'CUserVarsActivity'               : 'Yes' , // User Variables Activity
+'CWaitForFileActivity'            : 'Yes'   // Wait For File Activity
+]
+
+// Spark jobs can only be created from within DFD, so by definition they comply
+def jobType = item.metaBag."APT.DFDJobType";
+
+if (jobType == null || jobType != "SPARK") {
+	item.graph.V.comply{"The ${config.readableStageTypes[it.stageType] ?: it.stageType} stage used by '${it.stageName}' is not yet supported by IBM DataStage Flow Designer."} {
+		if (it.stageType != null) {
+			
+			def answer = '';
+
+			if (map.containsKey(it.stageType)) {
+				answer = map[it.stageType];
+			} 
+			
+			// The list of supported stages is explicit. If it's unknown, it's either old or a custom stage and isn't supported
+			if ((answer != "Yes")) {
+				return (false);
+			}
+		}
+		return (true);
+	}
+};

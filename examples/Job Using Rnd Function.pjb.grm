@@ -1,0 +1,18 @@
+/*
+ * Look for Transformer using rnd()
+ *
+ * Rational:
+ * rnd() is random function, and the generated output is not fix
+ * This will clause false positive in MettleCI Unit Testing results
+ */
+
+item.graph.V
+    .stage.as("stage")
+    .has('stageType', 'PxSVTransformer')
+    .copySplit(_(), _().out.pin).fairMerge
+    .derivations
+    .has('type', 'call')
+    .filter{ ((it.category == 'custom' || it.category == 'function') && it.name == "Rnd") }
+    .sideEffect{ f, pipes ->
+        compliance.failure("${config.readableStageTypes[pipes.stage.stageType] ?: pipes.stage.stageType} '${pipes.stage.stageName}' uses ${f.name}()")
+    }    

@@ -1,0 +1,25 @@
+/*
+ * Log Column Values
+ *
+ * Rationale:
+ * Log column values on first row error, is a feature uses for debugging purpose. It write error rows in plain text into log file.
+ * There is potential that the error row may have sensitive information
+ *
+ * This rule it to raise awareness of which stages of a job has Log columnn values on first row error enabled
+ */
+def logColumnValue_on = { stage ->
+    if ((stage.XMLProperties == null) || 
+        (stage.XMLProperties.Usage == null) || 
+        (stage.XMLProperties.Usage.Logging == null) || 
+        (stage.XMLProperties.Usage.Logging.LogColumnValues == null)) {
+        return false
+    }
+
+    if (Eval.x(stage["XMLProperties"], "x.Usage.Logging.LogColumnValues").toString() != "0") {
+        return true
+    }
+    return false
+}
+
+item.graph.V.stage.filter(logColumnValue_on)
+    .comply{"${config.readableStageTypes[it.stageType] ?: it.stageType} '${it.stageName}' is configured to log column values on error which might expose sensitive information."}

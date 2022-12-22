@@ -1,0 +1,10 @@
+
+item.graph.V.stage
+    .has('stageType', 'RowSplitter').as("stage")
+    .out.pin
+    .sideEffect { pin, pipes ->
+        if (pin.is_fixed_width_columns == "0" && !(pin.delimiter_character)) {
+            compliance.failure("Row Splitter ${pipes.stage.stageName}: output format set as delimited, but delimiter is not present.")
+        }
+    }
+    .iterate();

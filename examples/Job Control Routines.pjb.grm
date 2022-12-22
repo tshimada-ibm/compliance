@@ -1,0 +1,17 @@
+/*
+ * Job Control Routines
+ *
+ * Rationale:
+ * 1) When stopping a parent job, the job triggered by Job Control Routine will not be stopped, and has to be killed.
+ * 2) Server to Parellel conversion does not convert Job Control Routine
+ */
+
+def jobControlCode = item.properties["jobControlCode"];
+
+if (jobControlCode != null) {
+    def jobPattern = ~/DSJS\.[RUNNING|RUNOK|RUNWARN|RUNFAILED|VALOK|VALWARN|VALFAIL|RESET|STOPPED]/;
+    
+    if (jobControlCode =~ jobPattern) {
+        compliance.failure("${item.name} has Job Control Routine")
+    }
+}

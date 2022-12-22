@@ -1,0 +1,140 @@
+/*
+ * Hardcoded Dates in Custom SQL
+ *
+ * Rationale:
+ * Dates in SQL are an indicator of a once-off fix that may cause issues if run again.
+ * Dates should either be dynamically determined by the job logic to be consistently repeatable,
+ * of defined in a place that is easily visible outside of custom SQL statements. 
+ *
+ */
+
+  // Dates
+  def dateFormats = [
+  '.*[12]\\d{3}[/-](0[1-9]|1[0-2])[/-](0[1-9]|[12]\\d|3[01]).*', //YYYYMMDD
+  '.*(0[1-9]|[12]\\d|3[01])[/-](0[1-9]|1[0-2])[/-][12]\\d{3}.*', //DDMMYYYY
+  '.*(0[1-9]|1[0-2])[/-](0[1-9]|[12]\\d|3[01])[/-][12]\\d{3}.*', //MMDDYYYY
+  '.*\\d{2}[/-](0[1-9]|1[0-2])[/-](0[1-9]|[12]\\d|3[01]).*',     //YYMMDD
+  '.*(0[1-9]|[12]\\d|3[01])[/-](0[1-9]|1[0-2])[/-]\\d{2}.*',     //DDMMYY
+  '.*(0[1-9]|1[0-2])[/-](0[1-9]|[12]\\d|3[01])[/-]\\d{2}.*',      //MMDDYY
+  '.*(\\d|0[1-9]|[12]\\d|3[01]) (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec) [12]\\d{3}.*'      //DD MMM YYYY
+] as Set
+
+
+ // stage to file property mapping
+def connectorProperties = [
+   'CognosTM1ConnectorPX',  // Provisional. Requires an actual TM1 source to configure.
+   'DB2ConnectorPX',
+   'DRSConnectorPX',
+   'GreenplumConnectorPX',
+   'HiveConnectorPX',
+   'JDBCConnectorPX',
+   'NetezzaConnectorPX',
+   'ODBCConnectorPX',
+   'OracleConnectorPX',
+   'SnowflakeConnectorPX',
+   'TeradataConnectorPX'
+] as Set
+
+defEnterpriseStages = [
+    'PxDB2', 
+    'PxInformixXPS',
+    'PxOdbc',
+    'PxOracle',
+    'Pxsqlsvr',
+    'PxSybase',
+    'PxTeradata'
+] as Set
+
+def type1Stages = [
+    'PXClassicFederation',
+    'Pxiway',
+    'PxNetezza'
+] as Set
+
+def type2Stages = [
+    'DSDB2PX',         // DB2 Stage has been deprecated
+    'DRSPX',           // Dynamic RDBMS Stage has been DEPRECATED
+    'InfmxCLIPX',      // Informix Data Access
+    'SYBASEOCPX',      // Sybase Data Access
+    'TeradataPX'       // Teradata Stage has been DEPRECATED
+] as Set
+
+def type3Stages = [
+    'PxDB2Z' // DB2Z has been DEPRECATED
+] as Set
+
+ def CheckForHardcodedDates = { stage ->
+    def userModeFlag = null;
+    def sql = "";
+
+    // Check against Connectors
+    if (connectorProperties.contains(stage.stageType)) {
+		if (stage["XMLProperties"] != null) {
+            def genSQLMode = Eval.x(stage["XMLProperties"], "x.Usage.GenerateSQL").toString();
+
+            if (genSQLMode.toLowerCase() == 'false' || genSQLMode == '0') {
+			    sql = Eval.x(stage["XMLProperties"], "x.Usage.SQL.SelectStatement")?.toString().toLowerCase().replace('\n',' ');
+            } else { 
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
+    // Each of the older and deprecated Stages will be one of a couple of styles 
+    def sqlModeFlag = null;
+
+    // Enterprise and Type 1 stages are stored in separate buckets
+    // but handled the same bacause Enterprise stages also have SQL builder mode and Type 1 doesn't.
+    // For the modes we care about, the info for both is stored in the places in the same way.
+    if ((defEnterpriseStages.contains(stage.stageType) 
+        || type1Stages.contains(stage.stageType))
+        &&  (stage.out)) {
+        switch(stage.out.pin.selection.next().toString().toLowerCase()) {
+            case "query": 
+                //Generated - Not relevant for Type 3
+            case "userquery":
+                sql = stage.out.pin.property("query").next().toString().toLowerCase().replace("null","");
+                break;
+            default:
+                return false;
+                break;
+        }
+    }
+
+    if (type2Stages.contains(stage.stageType) && stage.out) {
+        switch(stage.out.pin.property("GENSQL").next().toString().toLowerCase()) {
+            case "yes":
+            case "y":
+                // Generated
+            case "no":
+            case "n":
+                // User
+                sql = stage.out.pin.property("USERSQL").next().toString().toLowerCase().replace("null","");
+                break;
+            default:
+                return false;
+                break;
+        }
+    }
+
+    if (type3Stages.contains(stage.stageType) && stage.out) {
+        if (stage.out.pin.property("selection").next().toString().toLowerCase() == "userquery") {
+            sql = stage.out.pin.property("USERSQL").next().toString().toLowerCase().replace("null","");
+        }
+        else {
+            return false;
+        }
+    }
+    
+    if (sql != null) {
+        return dateFormats.any{ dateFormat -> sql.matches(dateFormat) };
+    }
+
+    return false;
+}
+
+item.graph.V.stage.filter(CheckForHardcodedDates)
+    .comply{"${config.readableStageTypes[it.stageType] ?: it.stageType} '${it.stageName}' contains hard-coded dates in user defined SQL."}
+

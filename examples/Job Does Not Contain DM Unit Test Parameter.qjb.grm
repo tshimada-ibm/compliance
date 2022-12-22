@@ -1,0 +1,7 @@
+/*
+ * Checks to ensure MettleCI Unit Testing capability has been added to a job. 
+ */
+
+if (!(item.parameters.any { paramName, param -> paramName.contains("DM_ENABLE_UNIT_TESTING") })) {
+    compliance.failure("MettleCI Unit Test job parameter has not been added to this job");
+};

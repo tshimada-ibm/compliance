@@ -1,0 +1,10 @@
+def resultSet = [] as Set
+
+item.graph.V.stage.as('stage')
+    .outE.link.as('link')
+    .columns
+    .scatter
+    .filter{ it.name.contains('.') }
+    .sideEffect{ column, pipes ->
+        compliance.failure("${pipes.stage.stageName}: column '${column.name}' in output link '${pipes.link.linkName}' contains unsupported characters.")
+}.iterate()

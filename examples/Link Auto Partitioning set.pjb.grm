@@ -1,0 +1,34 @@
+/*
+ * Reports links whose partitioning are set to Auto
+ *
+ * Rationale:
+ * With Auto partitioning, the developer is leaving it up to DataStage to make an appropriate choice, 
+ * given the design of the job. This is the default behaviour unless specified in the job design.
+ * However, when DataStage is left to determine partitioning, developers may not understand the workings 
+ * of the job in sufficient detail.
+ */
+
+item.graph.V.stage.in.pin.as("pin")
+    .out.metabag.filter{ metabag ->
+        def partCol = metabag."APT.Part/Col"
+
+        if (partCol) {
+            return false
+        }
+        return true
+
+    }.back("pin")
+    .comply { "${it.failMessage}" } { pin ->
+        // collect attributes from multiple graph elements to build a meaningful failure message
+        t = new Table()
+        pin.as('pin')
+            .out.stage.stageName.as("stageName").back('pin')
+            .inE.linkName.as("link")
+            .table(t).iterate()
+
+        def stageName = t.get(0, 'stageName')
+        def linkName = t.get(0, 'link')
+
+        pin.failMessage = "Partitioning on link '${linkName}' into stage '${stageName}' is set to Auto."
+        return false
+    }

@@ -1,0 +1,23 @@
+/*
+ * Ensure job is using SAME partition when writing to DataSet
+ *
+ * Rational:
+ * Using the SAME instead of auto will guarantee how the data is stored in DataSet
+ * Hence when the dataSet is used in the subsequence job, it does not need repartioning
+ * This is due to repartition takes up a lot of resources
+ */
+
+item.graph.V
+    .stage.as("stage")
+    .has('stageType', 'PxDataSet')
+    .in.pin
+    .out.metabag
+    .sideEffect{ metabag, pipes ->
+        def partitionType = metabag."APT.Part/Col"
+        if (!partitionType) {
+            partitionType = "auto"
+        }
+        if (partitionType != "same") {
+            compliance.failure("Partition method for writing ${config.readableStageTypes[pipes.stage.stageType] ?: pipes.stage.stageType} '${pipes.stage.stageName}' should set to 'Same'")
+        }
+    }

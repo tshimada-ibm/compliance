@@ -1,0 +1,45 @@
+/*
+ * Audit Annotation
+ *
+ * Rationale:
+ * Report 
+ *      - hostname is found in annotation
+ *      - the word "password" is found in annotation
+ *      - the word "hostname" is found in annotation
+ *      - the word "organisation" or "oraganization" is found in annotation
+ *
+ * Note:
+ * It is impossible to have a RegEx to detect password/short hostname/organisation, 
+ * so assuming if those words are found, the likelihood of the actual password/short hostname/organisation is high.
+ */
+def hasSensitiveData(textString) {
+    def pattern = /(([a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)+([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])|password|hostname|organi[s|z]ation/;
+    if (textString) {
+        def matcher = textString.toLowerCase() =~ pattern;
+        if (matcher.find()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+def sensitiveDataInAnnotation = false;
+item.graph.V.annotation.sideEffect { annotation ->
+    if (annotation.annotationType == "short description") {
+        if (hasSensitiveData(item.shortDescription)) {
+            compliance.failure("Sensitive Data is suspected in job short description");
+        }
+    } else if (annotation.annotationType == "long description") {
+        if (hasSensitiveData(item.longDescription)) {
+            compliance.failure("Sensitive Data is suspected in job full description");
+        }
+    } else {
+        if (hasSensitiveData(annotation.text)) {
+            sensitiveDataInAnnotation = true;
+        }
+    }
+}.iterate()
+
+if (sensitiveDataInAnnotation) {
+    compliance.failure("Sensitive Data is suspected in job annotation");
+}

@@ -1,0 +1,216 @@
+/*
+* Lists the stages that are not yet supported by IBM Data Flow Designer
+*
+* Rationale:
+* For the Upgrade scenario, it will be useful in the future to know which jobs can be 
+* fully supported using Data Flow Designer. Each job that 'fails' this rule needs the 
+* standard DS Client available in order to be maintained.
+*
+* Based on list from IBM:
+* https://www.ibm.com/support/knowledgecenter/en/SSZJPZ_11.7.0/com.ibm.swg.im.iis.ds.fd.doc/topics/c_supported_conn_stgs.html
+*
+*/
+
+def map = [
+// Data Quality ---------------------------------------------------------------
+'IADataRule'                     : 'No' , // Data Rules
+'ExceptionStage'                 : 'No' , // Exceptions
+'Investigate'                    : 'No' , // Investigate
+'MatchFrequency'                 : 'No' , // Match Frequency
+'MasterDataManagementConnectorPX': 'No' , // MDM Connector
+'MNS'                            : 'No' , // Multi-National Standardization (MNS)
+'UnduplicateMatch'               : 'No' , // One Source Match
+'SQA'                            : 'No' , // Standardization Quality Assessment (SQA)
+'Standardize'                    : 'No' , // Standardize
+'Survive'                        : 'No' , // Survive
+'ReferenceMatch'                 : 'No' , // Two Source Match
+'AddressVerification2'           : 'No' , // Address Verification (AVI)
+'CASS'                           : 'No' , // CASS Certified Address Stage
+// Database -------------------------------------------------------------------
+'bigqueryPX'                     : 'Yes', // BigQuery
+'BigQueryConnectorPX'            : 'Yes', // BigQuery Connector
+'CassandraConnectorPX'           : 'Yes', // Cassandra Federation
+'MetaCassandraConnectorPX'       : 'No' , // Cassandra Federation      ?
+'PXClassicFederation'            : 'Yes', // Classic Federation
+'CognosTM1ConnectorPX'           : 'No' , // Cognos TM1 Connector
+'DB2ConnectorPX'                 : 'Yes', // DB2 Connector
+'DSDB2PX'                        : 'No' , // DB2 UDB API Stage has been DEPRECATED
+'UDBLoadPX'                      : 'No' , // DB2 UDB Load has been DEPRECATED
+'PxDB2'                          : 'No' , // DB2/UDB Enterprise
+'PxDB2Z'                         : 'No' , // DB2Z has been DEPRECATED
+'DTStagePX'                      : 'Yes', // Distributed Transaction
+'DRSConnectorPX'                 : 'Yes', // DRS Connector
+'DRSPX'                          : 'No' , // Dynamic RDBMS has been DEPRECATED
+'GoogleCloudStoragePX'           : 'Yes', // Google Cloud Storage
+'GoogleCloudStorageMetaPX'       : 'No' , // Google Cloud Storage
+'GreenplumConnectorPX'           : 'Yes', // GreenPlum Connector
+'HBaseConnectorPX'               : 'Yes', // HBase Connector
+'HiveConnectorPX'                : 'Yes', // Hive Connector
+'InfmxCLIPX'                     : 'No' , // Informix CLI
+'PxInformixXPS'                  : 'Yes', // Informix Enterprise
+'INFBLK10PX'                     : 'Yes', // Informix Load
+'XPSLoadPX'                      : 'No' , // Informix XPS Load
+'Pxiway'                         : 'No' , // iWay Enterprise
+'JDBCConnectorPX'                : 'Yes', // JDBC Connector
+'NetezzaConnectorPX'             : 'Yes', // Netezza Connector
+'PxNetezza'                      : 'No' , // Netezza Enterprise
+'ODBCConnectorPX'                : 'Yes', // ODBC Connector
+'PxOdbc'                         : 'No' , // ODBC Enterprise
+'OracleConnectorPX'              : 'Yes', // Oracle Connector
+'PxOracle'                       : 'No' , // Oracle Enterprise
+'ORAOCIBLPX'                     : 'No' , // Oracle OCI Load has been DEPRECATED
+'rdbloadPX'                      : 'No' , // RedBrick Load
+'SnowflakeConnectorPX'           : 'Yes', // Snowflake Connector
+'Pxsqlsvr'                       : 'Yes', // SQLServer Enterprise
+'STPPX'                          : 'No' , // Stored Procedure
+'PxSybase'                       : 'Yes', // Sybase Enterprise
+'IQBulk12PX'                     : 'Yes', // Sybase IQ 12 Load
+'SYBASEOCPX'                     : 'Yes', // Sybase OC
+'TeradataPX'                     : 'No' , // Teradata API has been DEPRECATED
+'TeradataConnectorPX'            : 'Yes', // Teradata Connector
+'PxTeradata'                     : 'No' , // Teradata Enterprise
+'TerabulkPX'                     : 'No' , // Teradata Load has been DEPRECATED
+'TDMLoadPX'                      : 'No' , // Teradata Multiload
+// Debug ----------------------------------------------------------------------
+'PxColumnGenerator'              : 'Yes', // Column Generator
+'PxHead'                         : 'Yes', // Head
+'PxPeek'                         : 'Yes', // Peek
+'PxRowGenerator'                 : 'Yes', // Row Generator
+'PxSample'                       : 'Yes', // Sample
+'PxTail'                         : 'Yes', // Tail
+'PxWriteRangeMap'                : 'Yes', // Write Range Map
+// File -----------------------------------------------------------------------
+'AzureBlobStorageConnectorPX'    : 'No' , // Azure Blob Storage Connector
+'AzureFileStorageConnectorPX'    : 'No' , // Azure File Storage Connector
+'AzureStorageConnectorPX'        : 'No' , // Azure Storage Connector
+'AmazonS3PX'                     : 'Yes', // Amazon S3
+'PxBDFS'                         : 'Yes', // Big Data File
+'cloudobjectstoragePX'           : 'Yes', // Cloud Object Storage
+'PxCFF'                          : 'Yes', // Complex Flat File
+'PxDataSet'                      : 'Yes', // Data Set
+'PxExternalSource'               : 'Yes', // External Source
+'PxExternalTarget'               : 'Yes', // External Target
+'FileConnectorPX'                : 'Yes', // File Connector
+'LocalFileConnectorPX'           : 'No' , // File Connector - Engine Tier
+'HDFSFileConnectorPX'            : 'No' , // File Connector - HDFS
+'PxFileSet'                      : 'Yes', // FileSet
+'PxLookupFileSet'                : 'Yes', // Lookup FileSet
+'PxParSASDataSet'                : 'No' , // SAS Parallel DataSet
+'PxSequentialFile'               : 'Yes', // Sequential File
+'UnstructuredDataConnectorPX'    : 'No' , // Unstructured Data
+'PxzOSFile'                      : 'Yes', // zOSFile
+// Packs ----------------------------------------------------------------------
+'ABAP_EXT_for_R3_PX'             : 'No' , // ABAP Extract Stage
+'BAPI_PACK_for_R3_PX'            : 'No' , // BAPI Stage
+'DeltaExtractPX'                 : 'No' , // Delta Extract Stage (SAP)
+'EssbaseConnectorPX'             : 'No' , // Essbase Connector
+'PS_HRYPX'                       : 'No' , // Hierarchy for PeopleSoft Enterprise
+'PeoplesoftOnePX'                : 'No' , // JD Edwards EnterpriseOne
+'ORAAppsPX'                      : 'No' , // Oracle Applications Direct Access
+'orahrchy_PX'                    : 'No' , // Oracle Applications Hierarchy
+'SALESFORCEJCConnectorPX'        : 'Yes', // Salesforce
+'SAPIDocExtractConnectorPX'      : 'No' , // SAP IDoc Extract Connector
+'SAPIDocLoadConnectorPX'         : 'No' , // SAP IDoc Load Connector
+'sapodataPX'                     : 'Yes', // SAP OData Connector
+'sapodataIMAMPX'                 : 'No' , // SAP OData Connector Meta
+'Siebel_BCPX'                    : 'No' , // Siebel BC Pack
+'Siebel_DAPX'                    : 'No' , // Siebel DA Pack
+'Siebel_EIMPX'                   : 'No' , // Siebel EIM Pack
+// Processing -----------------------------------------------------------------
+'CTransformerStage'              : 'Yes', // Transformer
+'PxSVTransformer'                : 'No' , // BASIC Transformer
+'PxAggregator'                   : 'Yes', // Aggregator
+'PxBLM'                          : 'Yes', // Bloomfilter
+'PxChangeApply'                  : 'Yes', // Change Apply
+'PxChangeCapture'                : 'Yes', // Change Capture
+'PxChecksum'                     : 'Yes', // Checksum
+'PxCompare'                      : 'Yes', // Compare
+'PxCompress'                     : 'Yes', // Compress
+'PxCopy'                         : 'Yes', // Copy
+'DMConnectorPX'                  : 'No' , // Data Masking  
+'PxDecode'                       : 'Yes', // Decode
+'PxDifference'                   : 'Yes', // Difference
+'PxEncode'                       : 'Yes', // Encode
+'PxExpand'                       : 'Yes', // Expand
+'PxExternalFilter'               : 'Yes', // External Filter
+'PxFilter'                       : 'Yes', // Filter
+'PxFTP'                          : 'Yes', // FTP Enterprise
+'ftpPX'                          : 'No' , // FTP Plug-in
+'PxFunnel'                       : 'Yes', // Funnel
+'PxGeneric'                      : 'Yes', // Generic
+'PxJoin'                         : 'Yes', // Join
+'PxLookup'                       : 'Yes', // Lookup
+'PxMerge'                        : 'Yes', // Merge
+'PxModify'                       : 'Yes', // Modify
+'PivotPX'                        : 'Yes', // Pivot
+'PxPivot'                        : 'No' , // Pivot Enterprise
+'PxRemDup'                       : 'Yes', // Remove Duplicates
+'PxSAS'                          : 'No' , // SAS
+'PxSCD'                          : 'Yes', // Slowly Changing Dimension
+'PxSort'                         : 'Yes', // Standard Sort
+'PxSurrogateKeyGenerator'        : 'No' , // Surrogate Key Generator (1)
+'PxSurrogateKeyGeneratorN'       : 'Yes', // Surrogate Key Generator (2)
+'PxSwitch'                       : 'Yes', // Switch
+'PxWaveGenerator'                : 'Yes', // Wave Generator
+// Real Time ------------------------------------------------------------------
+'CDCTStagePX'                    : 'No' , // CDC Transaction
+'XMLStagePX'                     : 'Yes', // Hierarchical Data
+'ILOGJRulesConnectorPX'          : 'No' , // ILOG JRules Connector
+'PxRTIInput'                     : 'Yes', // ISD Input
+'PxRTIOutput'                    : 'Yes', // ISD Output
+'JClientPX'                      : 'No' , // Java Client
+'JavaStagePX'                    : 'Yes', // Java Integration
+'JTransformerPX'                 : 'No' , // Java Transformer
+'JAQLConnectorPX'                : 'No' , // MapReduce Connector
+'KafkaConnectorPX'               : 'Yes', // Kafka Connector
+'StreamsConnectorPX'             : 'No' , // Streams Connector
+'WSClientPX'                     : 'No' , // Web Services Client
+'WSTransformerPX'                : 'No' , // Web Services Transformer
+'MQSeriesPX'                     : 'No' , // WebSphere MQ Stage has been DEPRECATED
+'WebSphereMQConnectorPX'         : 'Yes', // WebSphere MQ Connector
+'XMLInputPX'                     : 'No' , // XML Input
+'XMLOutputPX'                    : 'No' , // XML Output
+'XMLTransformerPX'               : 'No' , // XML Transformer
+// Restructure ----------------------------------------------------------------
+'PxColumnExport'                 : 'Yes', // ColumnExport
+'PxColumnImport'                 : 'Yes', // ColumnImport
+'PxCombineRecords'               : 'Yes', // CombineRecords
+'PxMakeSubRec'                   : 'Yes', // MakeSub-Record
+'PxMakeVect'                     : 'Yes', // MakeVector
+'PxPromoteSubRec'                : 'Yes', // PromoteSub-Record
+'PxSplitSubRec'                  : 'Yes', // SplitSub-Record
+'PxSplitVect'                    : 'Yes', // SplitVector
+// Containers -----------------------------------------------------------------
+'Container (Local)'              : 'Yes', // Local Container
+'Container (Shared)'             : 'No'   // Shared Container
+]
+
+// Spark jobs can only be created from within DFD, so by definition they comply
+def jobType = item.metaBag."APT.DFDJobType";
+
+if (jobType == null || jobType != "SPARK") {
+	item.graph.V.comply{"The ${config.readableStageTypes[it.stageType] ?: it.stageType} stage used by '${it.stageName}' is not yet supported by IBM DataStage Flow Designer."} {
+		if (it.stageType != null) {
+			
+			def answer = '';
+
+			if (map.containsKey(it.stageType)) {
+				answer = map[it.stageType];
+			} 
+			
+			if ((it.stageType == "container") && (it.ContainerType == "0")) {
+				answer = map["Container (Shared)"];
+			}
+			
+			if ((it.stageType == "container") && (it.ContainerType == "1")) {
+				answer = map["Container (Local)"];
+			}
+			
+			// The list of supported stages is explicit. If it's unknown, it's either old or a custom stage and isn't supported
+			if ((answer != "Yes")) {
+				return (false);
+			}
+		}
+		return (true);
+	}
+};

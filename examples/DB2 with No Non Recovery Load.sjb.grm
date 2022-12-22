@@ -1,0 +1,35 @@
+/*
+ * DB2 Stages using Bulkload and has "Non Recovery Load" set to "No"
+ *
+ * Rationale:
+ * This is to warn developer, when using Bulkload with "Non Recovery Load" set to No.
+ *
+ * This allows developer to make aware of the potential problem, and block the job getting into production 
+ * (i.e. avoid the need to restore the database if it crashes during the execution) 
+ */
+def validateNonRecoveryLoadSettings(msgPrefix, msgSuffix, xmlProperties) {
+    if (xmlProperties != null) {
+        // Only care of Bulkload write mode
+        def writeMode = Eval.x(xmlProperties, "x.Usage.WriteMode")?.toString().toLowerCase().replace('\n',' ')
+        if (writeMode == "6") {
+            def nonRecoveryLoadSetting = Eval.x(xmlProperties, "x.Usage.LoadControl.NonRecoverableTX")?.toString().toLowerCase().replace('\n',' ')
+            if (nonRecoveryLoadSetting == "0") {
+                compliance.failure("${msgPrefix} has 'Non Recovery Load' set to 'No'${msgSuffix}")
+            }
+        }
+    }
+}
+
+item.graph.V.stage.has('stageType', 'DB2Connector').sideEffect { stage ->
+    def messagePrefix = "${config.readableStageTypes[stage.stageType] ?: stage.stageType} '${stage.stageName}'";
+    if (stage.inE.link.count() == 1) {
+        // Stage with single input link (XMLProperties is under stage)
+        validateNonRecoveryLoadSettings(messagePrefix, " on input link.", stage.XMLProperties)
+    } else if (stage.inE.link.count() > 1) {
+        // Stage with multiple input links (XMLProperties is under pin)
+        stage.in.pin.sideEffect{ pin ->  
+            def messageSuffix = " on input link '${pin.inE.linkName.next()}.'"
+            validateNonRecoveryLoadSettings(messagePrefix, messageSuffix, pin.XMLProperties)
+        }.iterate()
+    }
+} 

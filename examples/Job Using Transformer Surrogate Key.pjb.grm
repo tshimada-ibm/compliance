@@ -1,0 +1,18 @@
+/*
+ * Look for Transformer using NextSurrogateKey()
+ *
+ * Rational:
+ * It is advisable for job to use Surrgorate Key Stage instead of NextSurrogateKey() within Transformer
+ * Rational is Surrgorate Key Stage is more visible, and makes jobs easier to maintain
+ */
+
+item.graph.V
+    .stage.as("stage")
+    .has('stageType', 'CTransformerStage')
+    .copySplit(_(), _().out.pin).fairMerge
+    .derivations
+    .has('type', 'call')
+    .filter{ ((it.category == 'custom' || it.category == 'function') && it.name == "NextSurrogateKey") }
+    .sideEffect{ f, pipes ->
+        compliance.failure("${config.readableStageTypes[pipes.stage.stageType] ?: pipes.stage.stageType} '${pipes.stage.stageName}' is using ${f.name}()")
+    }    

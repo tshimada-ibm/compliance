@@ -1,0 +1,15 @@
+/*
+ * Ensure naming standards for job parameters and parametersets have been adhered to. 
+ */
+
+item.parameters.each { paramName, param -> 
+    if (param.type == "Parameterset") {
+        if (!(paramName =~ /^ps[A-Z][a-zA-Z0-9]+$/)) {
+            compliance.failure("Parameterset ${paramName} does not comply with naming standards");
+        }
+    } else {
+        if (!(paramName =~ /^([$].*)|(p[A-Z][a-zA-Z0-9|_]+)$/)) {
+            compliance.failure("Job Parameter ${paramName} does not comply with naming standards");
+        }
+    }
+};

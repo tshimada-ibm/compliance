@@ -1,0 +1,18 @@
+/*
+ * Identifies potentially redundant sorting (a sort stage or link sort) situated immediately after a Join stage.
+ *
+ * Rationale:
+ * Sorting is resource intensive, and when used excessively can impact performance
+ *
+ * This rule identifies jobs that sort the output of a join stage, and warns the developer to review the job design
+ *
+ */
+
+item.graph.V.stage.has('stageType', 'CTransformerStage').sideEffect { stage ->
+    // When more than 2 in pins, there must be a join
+    if (stage.in.pin.count() >= 2) {
+        stage.out.stage.has('stageType', 'sort').sideEffect{ sortStage ->  
+            compliance.failure(" ${sortStage.stageType} '${sortStage.stageName}' is found immediately after a Transformer stage incorporating a join. This is potentially redundant.")
+        }.iterate()
+    } 
+}.iterate()

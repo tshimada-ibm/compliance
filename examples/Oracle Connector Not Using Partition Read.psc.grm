@@ -1,0 +1,19 @@
+/*
+ * Look for Oracle Connector not using Partition Read
+ *
+ * Rational:
+ * When an oracle table is properly partitioned,
+ * using partition read will improve performance.
+ */
+
+ item.graph.V.stage
+    .has('stageType', 'OracleConnectorPX')
+    .comply{"${config.readableStageTypes[it.stageType] ?: it.stageType} '${it.stageName}' is not using Partition Read" }
+    {
+        return (
+            it.XMLProperties != null &&
+            it.XMLProperties.Usage != null &&
+            it.XMLProperties.Usage.EnablePartitionedReads != null &&
+            it.XMLProperties.Usage.EnablePartitionedReads.text().startsWith("1")
+        )
+    }

@@ -1,0 +1,10 @@
+/*
+ * Ensure parameters are in parametersets.
+ * Environment variables are still allowed. 
+ */
+
+item.parameters.each { paramName, param -> 
+    if (param.type != "Parameterset" && !(paramName =~ /^[$].*/)) {
+        compliance.failure("Job Parameter ${paramName} is not part of a parameterset");
+    }
+};

@@ -1,0 +1,44 @@
+/*
+ * Ensures links with partitioning set to Entire are reference links for Lookup stages
+ *
+ * Rationale:
+ * The reason for using the Parallel engine is to split the data into smaller portions ot process in parallel.
+ * Setting a link to Entire forces a full copy of the data along each partition, which is inefficient.
+ * Reference links for Lookups are supposed to contain a relatively small volume of data, and are acceptable
+ * to use with Entire.
+ */
+
+
+item.graph.V.stage.in.pin.as("pin")
+        .out.metabag.filter{ metabag ->
+            def partCol = metabag."APT.Part/Col"
+
+            if (partCol) {
+                return partCol.contains("entire")
+            }
+            return false
+
+        }.back("pin")
+    .comply { "${it.failMessage}" } { pin ->
+      // collect attributes from multiple graph elements to build a meaningful failure message
+      t = new Table()
+      pin.as('pin')
+        .out.stage.stageName.as("stage").back(1)
+        .stageType.as("stageType").back('pin')
+        .inE.linkName.as("link").back(1)
+        .linkType.as("linkType")
+        .table(t).iterate()
+    
+      def stageName = t.get(0, 'stage')
+      def stageType = t.get(0, 'stageType')
+      def linkName = t.get(0, 'link')
+      def linkType = t.get(0, 'linkType')
+
+      if (linkType != "Reference" || stageType != "PxLookup") {
+        pin.failMessage = "Partitioning on link '${linkName}' into stage '${stageName}' is set to Entire."
+        return false
+      } else {
+        pin.failMessage = ""
+        return true
+      }
+    }

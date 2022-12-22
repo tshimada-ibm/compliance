@@ -1,0 +1,47 @@
+/*
+ * Date Format in Job Annotation
+ *
+ * Rationale:
+ * Certain company found developer put in Date Format (e.g. YYYY-MM-DD) instead of actual date in annotation
+ *
+ * Note
+ * Date Separator can be - / <space> <empty>, e.g. 2010-08-31, 2010/08/31, 2010 08 31, 20100831
+ * Year Month Day order can be YEAR-MOMTH-DAY, DAY-MONTH-YEAR, MONTH-DAY-YEAR
+ * Year is set to be 4 digit number, e.g. 2010
+ * Month can be 2 digit number, Short or Full, e.g. 01, Jan or January
+ * Month format on different platform can be MM, MMM, MMM, MON
+ * Day is set to be 2 digit number, e.g. first day of the month is 01
+ * It is not possible to check for single digit day, as it may lead it treating 2010-03-59 as a validate (due to 2010-03-5)
+ */
+def hasDateData(textString) {
+    def pattern = /(YYYY([\/\- ]?)(MM|MMM)\2DD)|(DD([\/\- ]?)(MM|MMM|MMMM|MON)\5YYYY)|((MM|MMM|MMMM|MON)([\/\- ]?)DD\9YYYY)/;
+    if (textString) {
+        def matcher = textString.toUpperCase() =~ pattern;
+        if (matcher.find()) {
+            //println("     " + matcher.group())
+            return true;
+        }
+    }
+    return false;
+}
+
+def dateInAnnotation = false;
+item.graph.V.annotation.sideEffect { annotation ->
+    if (annotation.annotationType == "short description") {
+        if (hasDateData(item.shortDescription)) {
+            compliance.failure("Date Format found in job short description");
+        }
+    } else if (annotation.annotationType == "long description") {
+        if (hasDateData(item.longDescription)) {
+            compliance.failure("Date Format found in job full description");
+        }
+    } else {
+        if (hasDateData(annotation.text)) {
+            dateInAnnotation = true;
+        }
+    }
+}.iterate()
+
+if (dateInAnnotation) {
+    compliance.failure("Date Format found in job annotation");
+}

@@ -1,0 +1,107 @@
+/*
+ * Join Partition vs Join Key
+ * Reports Join stages where the join key is not matching join partitioning 
+ *
+ * Rationale:
+ * If a join stage uses a different joih key from partitioning it may lead to inconsistent results 
+ */
+def mismatchedSet = [] as Set
+def getLinkPartition = { pin ->
+    def pinout = pin.out.next()
+    def partCol
+    if (pinout.metabag) {
+        partCol = pinout.metabag.next()."APT.Part/Col"
+    }
+    return partCol
+}
+
+def getPartitionKeys = { partCol ->
+    def partColArray = partCol.split(" ")
+    def foundKey = false
+    def keyString = ""
+    for (item in partColArray) {
+        if (foundKey) {
+            keyString = keyString + ((keyString)?",":"") + item
+            foundKey = false
+        } else if (item.equals("-key")) {
+            foundKey = true
+        }
+    }
+    return keyString
+}
+
+def getJoinKeys = { key ->
+    def joinKeys = key.toString()
+    if (key instanceof List) {
+        joinKeys = key.join(",")
+    }
+    return joinKeys
+}
+
+/*
+ * Hash partition:          hash -key <key1> -key <key2>        validate keys
+ * Range partition:         range -key <key1> -key <key2>       validate keys
+ * Modulus partition:       modulus -key <key>                  validate keys
+ * Same partition:          same                                look upstream
+ * Auto partion:            null                                skip
+ * DB2 partion:             db2part                             skip
+ * Entire partition:        entire                              skip
+ * Random partition:        random                              skip
+ * Round Robin partition:   roundrobin                          skip
+ */
+ 
+item.graph.V.stage.as("stage")
+    .has('stageType','PxJoin')
+    .in.pin
+    .sideEffect{ pin, pipes->
+        def partCol = getLinkPartition(pin)
+        
+        if (partCol) {
+            // Look upstream for join partition when 'same' is used
+            if (partCol.equals("same")) {
+                def upStage = pipes.stage
+                def upPartCol = partCol
+                def upMetabag = null
+
+                upStage = upStage.in?.stage.next()
+                upMetabag = upStage?.in?.pin.next().out.metabag.next()
+
+                while (true){
+                    if (upMetabag) {
+                        upPartCol = upMetabag."APT.Part/Col"?:'auto'
+                    }
+
+                    if (!upStage || upPartCol != 'same') {
+                        break
+                    }
+
+                    upStage = upStage.in?.stage.next()
+                    upMetabag = upStage?.in?.pin.next().out.metabag.next()
+                }
+                partCol = upPartCol
+            }
+
+            // Report when partition mismatched is found
+            // Accepts when Join Partition is a subset of Join Key
+            //   e.g.
+            //        Join Key           | Join Partition     | Result
+            //        -------------------+--------------------+----------------
+            //        key1               | key2               | fail
+            //        key1, key2         | key2               | fail
+            //        key1, key2         | key1, key2         | pass
+            //        key1, key2         | key1               | pass
+            //        key1               | key1               | pass
+            if (partCol.startsWith("hash") || partCol.startsWith("range") || partCol.startsWith("modulus")) {
+                def partKeys = getPartitionKeys(partCol)
+                def joinKeys = getJoinKeys(pipes.stage.key)
+                if (!("${joinKeys},").startsWith("${partKeys},")) {
+                    mismatchedSet.add(pipes.stage.stageName)
+                }
+            }
+        }        
+    }.iterate()
+
+for (stageName in mismatchedSet) {
+    compliance.failure("Join keys are different to Partitioning keys in PxJoin '${stageName}'")
+}
+

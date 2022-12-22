@@ -1,0 +1,46 @@
+/*
+ * Identifies potentially redundant sorting (a sort stage or link sort) situated immediately after a Join stage.
+ *
+ * Rationale:
+ * Sorting is resource intensive, and when used excessively can impact performance
+ *
+ * This rule identifies jobs that sort the output of a join stage, and warns the developer to review the job design
+ *
+ */
+
+def getLinkSort(stage) {
+    return stage.in.pin.out.metabag.filter { metabag ->
+        if (metabag.property("APT.Sort").next()) {
+            return true
+        }
+        return false   
+    }
+}
+def hasLinkSort(stage) {
+    if (getLinkSort(stage)) {
+        return true
+    }
+    return false
+}
+
+def hasSortStage(stage) {
+    if (stage.has('stageType', 'PxSort')) {
+        return true
+    }
+    return false
+}
+
+item.graph.V
+    .stage.has('stageType', 'PxJoin').out
+    .comply{" ${it.failMessage} "} { stage -> 
+        if (hasSortStage(stage)) {
+            stage.failMessage = " ${stage.stageType} '${stage.stageName}' is found immediately following a Join Stage and is potentially redundant."
+            return false
+        }
+
+        if (hasLinkSort(stage)) {
+            stage.failMessage = " ${stage.stageType} '${stage.stageName}' is found immediately following a Join Stage and uses a Link Sort, which is potentially redundant."
+            return false
+        } 
+        return true
+    }

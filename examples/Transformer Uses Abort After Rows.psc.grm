@@ -1,0 +1,21 @@
+/*
+ * Parallel Transformer with 'Abort after rows' > 0 
+ * 
+ * Rationale:
+ * This rule detects Parallel Transformer with an 'Abort after rows'
+ * setting greater than 0. This could be considered bad practice in
+ * some organisations as rows unexpectedly appearing on a given link
+ * could be more gracefully handled by introducing an error-handling
+ * process which does not cause a job to abort.
+ */
+
+item.graph.V
+    .stage.as("stage")
+    .has('stageType', 'CTransformerStage')
+    .out.pin.as("pin")
+    .filter{ it.RowLimit != "0" }
+    .outE
+    .filter{ it.linkName != null }
+    .sideEffect{ link, pipes ->
+        compliance.failure("${config.readableStageTypes[pipes.stage.stageType] ?: pipes.stage.stageType} '${pipes.stage.stageName}' has setting 'Abort After Rows' = ${pipes.pin.RowLimit} on output link '${link.linkName}'")
+    }

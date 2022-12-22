@@ -1,0 +1,39 @@
+/*
+ * Transformer With Unreference Stage Variable
+ *
+ * Rationale:
+ * Transformer is resource intensive, and having unreferenced Stage variable is just wasteful of resources
+ * This rule is to help detect the forgotten or unreferenced Stage variable
+ */
+
+def isReferenced(transformerName, stageVarName) {
+    def result = false
+
+    item.graph.V
+            .stage
+            .has('stageType', 'CTransformerStage')
+            .filter{ it.stageName == transformerName}
+            .copySplit(_(),_().out.pin)
+            .fairMerge
+            .derivations
+            .has('type','identifier')
+            .has('category','stageVariable')
+            .has('name',stageVarName)
+            .sideEffect{
+                result = true
+            }.iterate()
+
+    return result
+}
+
+item.graph.V
+    .stage
+    .has('stageType', 'CTransformerStage')
+    .sideEffect{ stage ->
+        def stageVarNames = [] as Set
+        for (stageVar in stage.stageVars) {
+            if (!isReferenced(stage.stageName, stageVar.name)) {
+                compliance.failure("Stage Variable, '${stageVar.name}' is not referenced in ${config.readableStageTypes[stage.stageType] ?: stage.stageType} '${stage.stageName}'")
+            }
+        }
+    }.iterate()

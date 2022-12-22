@@ -1,0 +1,20 @@
+/*
+* Sequential File With Reject Mode Not Set To Fail
+*
+* Some companies will want to have Reject Mode of Sequential File set as fail
+* This compliance rule will report it, when the Reject more is set at Continue or Output
+*/
+item.graph.V
+    .stage.has('stageType', 'PxSequentialFile')
+    .sideEffect() { stage ->
+        if (stage.inE) {
+            stage.inE.sideEffect() { link ->
+                if (link.outV) {
+                    def rejectMode = link.outV.next().rejects
+                    if ((rejectMode != null) && (rejectMode != "fail")) {
+                        compliance.failure("${config.readableStageTypes[stage.stageType] ?: stage.stageType} '${stage.stageName}' has Reject Mode set to ${(rejectMode == "save")?"output":rejectMode }")
+                    }
+                }
+            }.iterate()
+        }
+}.iterate()

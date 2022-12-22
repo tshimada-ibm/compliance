@@ -1,0 +1,10 @@
+/*
+ * Sequence Reset If Required
+ *
+ * Rationale:
+ " “Reset if required, then run” will be able to reset the jobs that are being called inside the sequence job. 
+ */
+item.graph.V.stage
+    .has('stageType', 'CJobActivity')
+    .filter{it.ExecutionType != "1"}
+    .comply{ "${it.stageType} '${it.stageName}' Execution action is not set to 'Reset if required, then run'." }

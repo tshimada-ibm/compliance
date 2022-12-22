@@ -1,0 +1,18 @@
+/*
+ * Ensure job parameters contain a default value. 
+ *
+ * Rationale: It is good practice to consider the use of default parameter values to
+ * protect jobs from unintended behaviour when invoked without providing all necessary
+ * parameter values 
+ *
+ * If you want to include Parameter Sets in your query you could omit this condition:
+ * if (param.type != "Parameterset")
+ */
+
+item.parameters.each { paramName, param -> 
+    if (param.type != "Parameterset") {
+        if (!(param.defaultValue)) {
+            compliance.failure("Job Parameter ${paramName} does not have a default value");
+        }
+    }
+}

@@ -1,0 +1,86 @@
+/*
+* Lists the stages that are not yet supported by IBM Cloud Pak for Data v4.6
+*
+* Based on the IBM documentation:
+* https://www.ibm.com/docs/en/cloud-paks/cp-data/4.6.x?topic=data-transforming
+* https://www.ibm.com/docs/en/cloud-paks/cp-data/4.6.x?topic=data-supported-sources
+*
+* ***********************************************************************
+* Note that this rule lists the stages which ARE CURRENTLY SUPPORTED!
+* As IBM add support for the import of more legacy stages into CP4D you
+* can add more operator names to this list
+* ***********************************************************************
+*
+*/
+
+def set = [
+'PxBDFS',                         // Big Data File Stage
+'CassandraConnectorPX',           // Cassandra Federation
+'DB2ConnectorPX',                 // DB2 Connector
+'GreenplumConnectorPX',           // GreenPlum Connector
+'HiveConnectorPX',                // Hive Connector
+'PxInformixXPS',                  // Informix Connector - documentation is vague, so this seems the most likely.
+'JDBCConnectorPX',                // JDBC Connector
+'NetezzaConnectorPX',             // Netezza Connector
+'ODBCConnectorPX',                // ODBC Connector
+'OracleConnectorPX',              // Oracle Connector
+'RedshiftPX',                     // RedShift Connector
+'RedshiftConnectorPX',            // RedShift Connector
+'TeradataConnectorPX',            // Teradata Connector
+'AddressVerification2',           // Address Verification (AVI)
+'Investigate',                    // Investigate
+'Standardize',                    // Standardize
+'PxColumnGenerator',              // Column Generator
+'PxHead',                         // Head
+'PxPeek',                         // Peek
+'PxRowGenerator',                 // Row Generator
+'PxSample',                       // Sample
+'PxTail',                         // Tail
+'PxWriteRangeMap',                // Write Range Map
+'AmazonS3PX',                     // Amazon S3
+'CloudObjectStorageConnectorPX',  // Cloud Object Storage (1)
+'cloudobjectstoragePX',           // Cloud Object Storage (2)
+'PxDataSet',                      // Data Set
+'FileConnectorPX',                // File Connector
+'PxFileSet',                      // FileSet
+'HDFSFileConnectorPX',            // File Connector - HDFS
+'PxLookupFileSet',                // Lookup FileSet
+'PxSequentialFile',               // Sequential File
+'CTransformerStage',              // Transformer
+'PxAggregator',                   // Aggregator
+'PxBLM',                          // Bloomfilter
+'PxChangeApply',                  // Change Apply
+'PxChangeCapture',                // Change Capture
+'PxChecksum',                     // Checksum
+'PxCompare',                      // Compare
+'PxCompress',                     // Compress
+'PxCopy',                         // Copy
+'PxDecode',                       // Decode
+'PxDifference',                   // Difference
+'PxEncode',                       // Encode
+'PxExternalFilter',               // External Filter
+'PxExpand',                       // Expand
+'PxFilter',                       // Filter
+'PxFunnel',                       // Funnel
+'PxGeneric',                      // Generic
+'PxJoin',                         // join
+'PxLookup',                       // Lookup
+'PxMerge',                        // Merge
+'PxModify',                       // Modify
+'PxPivot',                        // Pivot Enterprise
+'PxRemDup',                       // Remove Duplicates
+'PxSort',                         // Standard Sort
+'PxSurrogateKeyGenerator',        // Surrogate Key Generator (1)
+'PxSurrogateKeyGeneratorN',       // Surrogate Key Generator (2)
+'PxSwitch',                       // Switch
+'PxWaveGenerator',                // Wave Generator
+'KafkaConnectorPX',               // Kafka Connector
+'WebSphereMQConnectorPX',         // WebSphere MQ Connector
+'GooglePubSubPX',                 // Google Pub/Sub Connector
+'XMLStagePX',                     // Hierarchical Data
+'JavaStagePX',                    // Java Integration
+'PxColumnExport',                 // ColumnExport
+'PxColumnImport'                  // ColumnImport
+] as Set
+
+item.graph.V.stage.comply{"${config.readableStageTypes[it.stageType] ?: it.stageType} '${it.stageName}' may not be currently supported by IBM Cloud Pak for Data."}{set.contains(it.stageType)};

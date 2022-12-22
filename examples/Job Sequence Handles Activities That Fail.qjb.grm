@@ -1,0 +1,16 @@
+/*
+ * Verifies that a job sequence automatically handles failed activities
+ *
+ * Rationale:
+ * Sequence jobs can be configured to allow DataStage to automatically handle jobs that fail within a sequence. 
+ * You can enable or disable automatic failure handling recording at a project-wide level, or for individual sequence jobs. 
+ * This compliance rule verifies that this setting has been set for a specified job sequence. 
+ */
+
+if (
+    item.properties.jobSeqCodeGenOpts == null ||
+    item.properties.jobSeqCodeGenOpts.contains("handleaborts") == false
+) {
+    compliance.failure("Job Sequence does not automatically handle activities that fail.");
+    return;
+}

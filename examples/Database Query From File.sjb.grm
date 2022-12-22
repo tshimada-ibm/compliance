@@ -1,0 +1,90 @@
+/*
+ * Ensures if Database Connectors and Stages reads SELECT statement from file
+ *
+ * Rationale:
+ * Developers occasionally wants to keep the SQL statements flexible, and use external file for SQL statements.
+ * However, SQL statements from external files do not go to the metadata repository where they can be used for 
+ * job flow analysis. These SQL statements are also not included in operational metadata XML files.
+ *
+ * This can make the job harder to maintain as it contains external objects, and failure when deploying to a 
+ * different project of server.
+ *
+ * It is recommended for developer to use parameters instead of External file if they wish to maintain the 
+ * flexibility of SQL statements
+ *
+ */
+
+
+// stage to file property mapping
+
+def stageProperties = [
+    'DB2Connector'                	: [
+    									[alias: 'Read select statement from file', name: 'XMLProperties:Usage.SQL.SelectStatement.ReadFromFileSelect', expectedValue: '1', displayValue: 'Yes'],
+                                       	[alias: 'User-defined SQL', name: 'XMLProperties:Usage.SQL.UserDefinedSQL', expectedValue: '2', displayValue: 'File']
+                                      ],
+    'DRSConnector'					: [
+    									[alias: 'Read mode', name: 'XMLProperties:Usage.GENSQL', expectedValue: '2', displayValue: 'User-defined SQL file'],
+                                       	[alias: 'Write mode', name: 'XMLProperties:Usage.DOUPDATE', expectedValue: '10', displayValue: 'User-defined SQL file']    
+    								  ],
+    'DSDB2'                       	: [[alias: 'Query Type', name: 'GENSQL', expectedValue: 'sqlfile', displayValue: 'Load SQL from a file at run time']],
+    'DRS'                       	: [[alias: 'Quert type', name: 'GENSQL', expectedValue: 'Sqlfile', displayValue: 'User-defined SQL query file']],
+    'NetezzaConnector'            	: [
+                                        [alias: 'Read user-defined SQL from file', name: 'XMLProperties:Usage.SQL.SelectStatement.ReadUserDefinedSQLFromFile', expectedValue: '1', displayValue: 'Yes'],
+                                        [alias: 'Read user-defined SQL from file', name: 'XMLProperties:Usage.SQL.UserDefinedSQL.ReadUserDefinedSQLFromFile', expectedValue: '1', displayValue: 'Yes']
+                                      ],
+    'ODBCConnector'               	: [
+    									[alias: 'Read select statement from file', name: 'XMLProperties:Usage.SQL.SelectStatement.ReadStatementFromFile', expectedValue: '1', displayValue: 'Yes'],
+    									[alias: 'User-defined SQL', name: 'XMLProperties:Usage.SQL.UserDefinedSQL', expectedValue: '2', displayValue: 'File']
+    								   ],
+    'OracleConnector'             	: [
+    									[alias: 'Read select statement from file', name: 'XMLProperties:Usage.SQL.SelectStatement.ReadFromFileSelect', expectedValue: '1', displayValue: 'Yes'],
+    									[alias: 'Read insert statement from file', name: 'XMLProperties:Usage.SQL.InsertStatement.ReadFromFileInsert', expectedValue: '1', displayValue: 'Yes'],
+                                       	[alias: 'Read update statement from file', name: 'XMLProperties:Usage.SQL.UpdateStatement.ReadFromFileUpdate', expectedValue: '1', displayValue: 'Yes'],
+                                       	[alias: 'Read delete statement from file', name: 'XMLProperties:Usage.SQL.DeleteStatement.ReadFromFileDelete', expectedValue: '1', displayValue: 'Yes'],
+                                       	[alias: 'Read PL/SQL block from file', name: 'XMLProperties:Usage.SQL.PlSqlStatement.ReadFromFilePLSQLBlock', expectedValue: '1', displayValue: 'Yes']
+    								  ]
+]
+
+item.graph.V.stage.sideEffect{ stage ->
+
+    // the properties for this stage type
+    def properties = stageProperties[stage.stageType]
+	    
+	if (properties) {        
+        // find path[s] associated with this property
+        
+        properties.each { property ->
+            def paths = []
+
+            if (property.name.contains("XMLProperties:")) {
+                if (stage.XMLProperties != null) {
+                    def xmlProp = property.name.drop("XMLProperties:".length())
+                    path = Eval.x(stage["XMLProperties"], "x.${xmlProp}")
+                    
+                    if (property.name == "XMLProperties:Usage.SQL.UserDefinedSQL") {
+                        if (path.toString().startsWith(property.expectedValue)) {
+                            paths.add(property.displayValue);
+                        }
+                    } else {
+                        if (path == property.expectedValue) {
+                            paths.add(property.displayValue);
+                        }
+                    }
+                }
+            } else {
+               	// get the "Read Select Statement From File" from the output pin            	
+            	def outPin = stage.out.pin.property(property.name);
+            	if (outPin != null) {
+            		def pinValue = outPin.next();
+            		if (pinValue == property.expectedValue) {
+            	    	paths.add(property.displayValue);
+            	  	}
+            	}
+            }
+
+            if (paths.size() > 0) {
+                compliance.failure("${stage.stageType} '${stage.stageName}' has '${property.alias}' = '${paths[0]}'");
+            }
+        }
+    }
+}
